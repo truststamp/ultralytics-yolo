@@ -1073,6 +1073,107 @@ class Format:
             masks = polygons2masks((h, w), segments, color=1, downsample_ratio=self.mask_ratio)
 
         return masks, instances, cls
+    
+class Format_s2:
+    """
+    Formats image annotations for object detection, instance segmentation, and pose estimation tasks. The class
+    standardizes the image and instance annotations to be used by the `collate_fn` in PyTorch DataLoader.
+
+    Attributes:
+        bbox_format (str): Format for bounding boxes. Default is 'xywh'.
+        normalize (bool): Whether to normalize bounding boxes. Default is True.
+        return_mask (bool): Return instance masks for segmentation. Default is False.
+        return_keypoint (bool): Return keypoints for pose estimation. Default is False.
+        mask_ratio (int): Downsample ratio for masks. Default is 4.
+        mask_overlap (bool): Whether to overlap masks. Default is True.
+        batch_idx (bool): Keep batch indexes. Default is True.
+        bgr (float): The probability to return BGR images. Default is 0.0.
+    """
+
+    def __init__(
+        self,
+        bbox_format="xywh",
+        normalize=True,
+        return_mask=False,
+        return_keypoint=False,
+        return_obb=False,
+        mask_ratio=4,
+        mask_overlap=True,
+        batch_idx=True,
+        bgr=0.0,
+    ):
+        """Initializes the Format class with given parameters."""
+        self.bbox_format = bbox_format
+        self.normalize = normalize
+        self.return_mask = return_mask  # set False when training detection only
+        self.return_keypoint = return_keypoint
+        self.return_obb = return_obb
+        self.mask_ratio = mask_ratio
+        self.mask_overlap = mask_overlap
+        self.batch_idx = batch_idx  # keep the batch indexes
+        self.bgr = bgr
+
+    def __call__(self, labels):
+        """Return formatted image, classes, bounding boxes & keypoints to be used by 'collate_fn'."""
+        img = labels.pop("img")
+        h, w = img.shape[:2]
+        cls = labels.pop("cls")
+        instances = labels.pop("instances")
+        instances.convert_bbox(format=self.bbox_format)
+        instances.denormalize(w, h)
+        nl = len(instances)
+
+        if self.return_mask:
+            if nl:
+                masks, instances, cls = self._format_segments(instances, cls, w, h)
+                masks = torch.from_numpy(masks)
+            else:
+                masks = torch.zeros(
+                    1 if self.mask_overlap else nl, img.shape[0] // self.mask_ratio, img.shape[1] // self.mask_ratio
+                )
+            labels["masks"] = masks
+        labels["img"] = self._format_img(img)
+        labels["cls"] = torch.from_numpy(cls) if nl else torch.zeros(nl)
+        labels["bboxes"] = torch.from_numpy(instances.bboxes) if nl else torch.zeros((nl, 4))
+        if self.return_keypoint:
+            labels["keypoints"] = torch.from_numpy(instances.keypoints)
+            if self.normalize:
+                labels["keypoints"][..., 0] /= w
+                labels["keypoints"][..., 1] /= h
+        if self.return_obb:
+            labels["bboxes"] = (
+                xyxyxyxy2xywhr(torch.from_numpy(instances.segments)) if len(instances.segments) else torch.zeros((0, 5))
+            )
+        # NOTE: need to normalize obb in xywhr format for width-height consistency
+        if self.normalize:
+            labels["bboxes"][:, [0, 2]] /= w
+            labels["bboxes"][:, [1, 3]] /= h
+        # Then we can use collate_fn
+        if self.batch_idx:
+            labels["batch_idx"] = torch.zeros(nl)
+        return labels
+
+    def _format_img(self, img):
+        """Format the image for YOLO from Numpy array to PyTorch tensor."""
+        if len(img.shape) < 3:
+            img = np.expand_dims(img, -1)
+        img = img.transpose(2, 0, 1)
+        img = np.ascontiguousarray(img)
+        img = torch.from_numpy(img)
+        return img
+
+    def _format_segments(self, instances, cls, w, h):
+        """Convert polygon points to bitmap."""
+        segments = instances.segments
+        if self.mask_overlap:
+            masks, sorted_idx = polygons2masks_overlap((h, w), segments, downsample_ratio=self.mask_ratio)
+            masks = masks[None]  # (640, 640) -> (1, 640, 640)
+            instances = instances[sorted_idx]
+            cls = cls[sorted_idx]
+        else:
+            masks = polygons2masks((h, w), segments, color=1, downsample_ratio=self.mask_ratio)
+
+        return masks, instances, cls
 
 
 class RandomLoadText:

@@ -31,9 +31,10 @@ from ultralytics.utils import (
 
 # Define valid tasks and modes
 MODES = {"train", "val", "predict", "export", "track", "benchmark"}
-TASKS = {"detect", "segment", "classify", "pose", "obb"}
+TASKS = {"detect", "detect_s2", "segment", "classify", "pose", "obb"}
 TASK2DATA = {
     "detect": "coco8.yaml",
+    "detect_s2": "coco8.yaml",
     "segment": "coco8-seg.yaml",
     "classify": "imagenet10",
     "pose": "coco8-pose.yaml",
@@ -41,6 +42,7 @@ TASK2DATA = {
 }
 TASK2MODEL = {
     "detect": "yolov8n.pt",
+    "detect_s2": "yolov8n.pt",
     "segment": "yolov8n-seg.pt",
     "classify": "yolov8n-cls.pt",
     "pose": "yolov8n-pose.pt",
