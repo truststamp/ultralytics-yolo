@@ -28,15 +28,15 @@ from ultralytics import YOLO
 
 def main():
     model = YOLO("/home/luke/code/ship_detection/yolov8n.yaml", task='detect_s2')
-    model.train(data="/home/luke/code/ship_detection/dataset.yaml", epochs=100, 
+    model.train(data="/home/luke/code/ultralytics-yolo/dataset.yaml", epochs=20, 
                 plots=True,
-                # device='cpu',
+                device='cpu',
                 amp=False,
                 imgsz=1024,
                 single_cls = True,
                 batch = 4,
-                workers = 4,
-                augment=False,
+                workers = 0,
+                augment=True,
                 val=True,
                 rect=False,
                 )

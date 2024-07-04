@@ -121,7 +121,7 @@ class BaseMixTransform:
     def __init__(self, dataset, pre_transform=None, p=0.0) -> None:
         """Initializes the BaseMixTransform object with dataset, pre_transform, and probability."""
         self.dataset = dataset
-        self.pre_transform = pre_transform
+        self.pre_transform = pre_transform 
         self.p = p
 
     def __call__(self, labels):
@@ -171,6 +171,7 @@ class BaseMixTransform:
                 text = label["texts"][int(cls)]
                 label["cls"][i] = text2id[tuple(text)]
             label["texts"] = mix_texts
+
         return labels
 
 
@@ -198,7 +199,7 @@ class Mosaic(BaseMixTransform):
         self.border = (-imgsz // 2, -imgsz // 2)  # width, height
         self.n = n
 
-    def get_indexes(self, buffer=True):
+    def get_indexes(self, buffer=False):
         """Return a list of random indexes from the dataset."""
         if buffer:  # select images from buffer
             return random.choices(list(self.dataset.buffer), k=self.n - 1)
@@ -260,7 +261,7 @@ class Mosaic(BaseMixTransform):
 
             # Place img in img4
             if i == 0:  # top left
-                img4 = np.full((s * 2, s * 2, img.shape[2]), 114, dtype=np.uint8)  # base image with 4 tiles
+                img4 = np.full((s * 2, s * 2, img.shape[2]), 114, dtype=np.float32)  # base image with 4 tiles
                 x1a, y1a, x2a, y2a = max(xc - w, 0), max(yc - h, 0), xc, yc  # xmin, ymin, xmax, ymax (large image)
                 x1b, y1b, x2b, y2b = w - (x2a - x1a), h - (y2a - y1a), w, h  # xmin, ymin, xmax, ymax (small image)
             elif i == 1:  # top right
@@ -382,7 +383,7 @@ class MixUp(BaseMixTransform):
         """Applies MixUp augmentation as per https://arxiv.org/pdf/1710.09412.pdf."""
         r = np.random.beta(32.0, 32.0)  # mixup ratio, alpha=beta=32.0
         labels2 = labels["mix_labels"][0]
-        labels["img"] = (labels["img"] * r + labels2["img"] * (1 - r)).astype(np.uint8)
+        labels["img"] = (labels["img"] * r + labels2["img"] * (1 - r)).astype(np.float32)
         labels["instances"] = Instances.concatenate([labels["instances"], labels2["instances"]], axis=0)
         labels["cls"] = np.concatenate([labels["cls"], labels2["cls"]], 0)
         return labels
@@ -926,13 +927,15 @@ class Albumentations:
 
             # Transforms
             T = [
-                A.Blur(p=0.01),
-                A.MedianBlur(p=0.01),
-                A.ToGray(p=0.01),
-                A.CLAHE(p=0.01),
-                A.RandomBrightnessContrast(p=0.0),
-                A.RandomGamma(p=0.0),
-                A.ImageCompression(quality_lower=75, p=0.0),
+                A.Blur(p=0.1),
+                A.MedianBlur(p=0.1, blur_limit=5),
+                # A.ToGray(p=0.01),
+                # A.CLAHE(p=0.01),
+                # A.RandomBrightnessContrast(p=0.0),
+                # A.RandomGamma(p=0.0),
+                A.PixelDropout(p=0.1),
+                A.PixelDropout(p=0.1, per_channel=True),
+                # A.ImageCompression(quality_lower=75, p=0.01),
             ]
 
             # Compose transforms
@@ -1253,17 +1256,17 @@ class RandomLoadText:
 def v8_transforms(dataset, imgsz, hyp, stretch=False):
     """Convert images to a size suitable for YOLOv8 training."""
     pre_transform = Compose(
-        [
-            Mosaic(dataset, imgsz=imgsz, p=hyp.mosaic),
-            CopyPaste(p=hyp.copy_paste),
-            RandomPerspective(
-                degrees=hyp.degrees,
-                translate=hyp.translate,
-                scale=hyp.scale,
-                shear=hyp.shear,
-                perspective=hyp.perspective,
-                pre_transform=None if stretch else LetterBox(new_shape=(imgsz, imgsz)),
-            ),
+        [   
+            Mosaic(dataset, imgsz=imgsz, p=hyp.mosaic)
+            # CopyPaste(p=hyp.copy_paste),
+            # RandomPerspective(
+            #     degrees=hyp.degrees,
+            #     translate=hyp.translate,
+            #     scale=hyp.scale,
+            #     shear=hyp.shear,
+            #     perspective=hyp.perspective,
+            #     pre_transform=None if stretch else LetterBox(new_shape=(imgsz, imgsz)),
+            # ),
         ]
     )
     flip_idx = dataset.data.get("flip_idx", [])  # for keypoints augmentation
@@ -1280,7 +1283,7 @@ def v8_transforms(dataset, imgsz, hyp, stretch=False):
             pre_transform,
             MixUp(dataset, pre_transform=pre_transform, p=hyp.mixup),
             Albumentations(p=1.0),
-            RandomHSV(hgain=hyp.hsv_h, sgain=hyp.hsv_s, vgain=hyp.hsv_v),
+            # RandomHSV(hgain=hyp.hsv_h, sgain=hyp.hsv_s, vgain=hyp.hsv_v),
             RandomFlip(direction="vertical", p=hyp.flipud),
             RandomFlip(direction="horizontal", p=hyp.fliplr, flip_idx=flip_idx),
         ]

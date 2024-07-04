@@ -172,7 +172,7 @@ class DetectionTrainer_s2(BaseTrainer):
         dataset = YOLODataset_s2(img_path=img_path,
                                  imgsz=self.args.imgsz,
                                  batch_size=batch,
-                                 augment=self.args.augment,  #mode == "train",  # augmentation
+                                 augment=mode == "train",  # augmentation
                                  hyp=self.args,  # TODO: probably add a get_hyps_from_cfg function
                                  rect=self.args.rect,  # or mode == "val",  # rectangular batches
                                  cache=self.args.cache or None,

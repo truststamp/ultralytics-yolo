@@ -1,0 +1,10 @@
+# dataset.yaml
+train: /home/luke/data/yolo_v8/train/images  # directory to train images
+val: /home/luke/data/yolo_v8/val/images  # directory to train images
+
+# COCO json annotation files
+train_ann: /home/luke/data/yolo_v8/train/labels
+val_ann: /home/luke/data/yolo_v8/val/labels
+
+nc: 1  # number of classes
+names: ['ship']  # class names
